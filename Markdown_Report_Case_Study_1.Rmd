@@ -1,0 +1,257 @@
+---
+title: "Case Study: How Does a Bike-Share Navigate Speedy Success?"
+author: "Victor Olmos"
+date: "2023-11-01"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+## Case Study: How Does a Bike-Share Navigate Speedy Success?
+
+(Case study from Google Data Analyst course in Coursera: <https://www.coursera.org/learn/google-data-analytics-capstone/>)
+
+### Business Task Summary:
+
+Cyclistic (fictional company name) offers bike-sharing in the city of Chicago, including some bikes with assistive options (8% riders use them). Cyclistic offers different pricing plans, single-day and full-day passes for more casual customers, and annual memberships for regular users, or Cyclistic members. It has been observed that annual members are much more profitable than casual customers, so it's interesting for the company to maximize this kind of customer.
+
+**Thesis:** Casual riders can be converted into Cyclistic members.
+
+**Problem:** Which are the differences and similarities between the 2 types of customers? How can more casual customers become members?
+
+### Data information:
+
+Data has been made available for the bike-share company (Motivate International Inc.) under a license agreement (see link below) to maintain their customers' privacy.
+
+Data source: <https://divvy-tripdata.s3.amazonaws.com/index.html>.
+
+Licence agreement: <https://divvybikes.com/data-license-agreement>.
+
+From the purpose of this case study, data from 2022 has been selected. The data is divided into 12 csv documents, one for each month of the year. In each document there are between 100,000 and 700,000 trips, making a total of 5,667,717 trips during the whole year. Data is too large to be opened together into a single spreadsheets document. For this reason, data has been imported to R for cleaning and analysis.
+
+Data is organized in 13 attribute keys in columns which provide information from each bike trip:
+
+-   *ride_id*
+
+-   *rideable_type*
+
+-   *started_at*
+
+-   *ended_at*
+
+-   *start_station_name*
+
+-   *start_station_id*
+
+-   *end_station_name*
+
+-   *end_station_id*
+
+-   *start_lat*
+
+-   *start_lng*
+
+-   *end_lat*
+
+-   *end_lng*
+
+-   *member_casual*
+
+A portion of the dataset is available in Kaggle with a Usability score of 9.4. For this reason, I think that is a reliable dataset. Datasets only contain non-identifiable information, so a previous step with that purpose is not necessary.
+
+No information about the column names has been provided, but names look quite explanatory. Some information in the *start_station_name*, *start_station_id*, *end_station_name* and *end_station_id* is missing. Also, some of the *station_id* are numbers and others are combinations of characters and numbers.
+
+### Data exploration and cleaning:
+
+Install libraries:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+if (!require("tidyverse")) { install.packages("tidyverse"); library(tidyverse);
+library(readr) } 
+```
+
+Set work space and load data:
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+working_directory = "C:/Users/Roctiv/Desktop/Google courses data/Case Study/Case 1/data"
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+#set workspace
+setwd(working_directory)
+
+#initialize dataset
+tripdata_2022 <- data.frame(matrix(nrow = 0, ncol = 13))
+column_names <- c("ride_id", "rideable_type", "started_at", "ended_at", "start_station_name",
+                  "start_station_id", "end_station_name", "end_station_id", "start_lat",
+                  "start_lng", "end_lat", "end_lng", "member_casual")
+colnames(tripdata_2022) = column_names
+
+#load csv 1 to 8
+for (n in 1:8){number <- as.character(n)
+document_name <- paste0("20220",number,"-divvy-tripdata.csv")
+new_dataset <- read_csv(document_name)
+tripdata_2022 <- rbind(tripdata_2022, new_dataset) }
+
+#load csv 9 separately because it has a different name
+new_dataset <- read_csv("202209-divvy-publictripdata.csv")
+tripdata_2022 <- rbind(tripdata_2022, new_dataset)
+
+#load csv 10 to 12
+for (n in 10:12){number <- as.character(n)
+document_name <- paste0("2022",number,"-divvy-tripdata.csv")
+new_dataset <- read_csv(document_name)
+tripdata_2022 <- rbind(tripdata_2022, new_dataset) }
+```
+
+Data exploration:
+
+*Stringr* and *skimr* libraries have been loaded. Data summary:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+#load libraries
+library(stringr)
+library(skimr)
+
+#data summary:
+skim_without_charts(tripdata_2022)
+```
+
+Data cleaning:
+
+Information from the station won't be used to answer the business question. For this reason, the 8 columns related to it (some also show incomplete information) will be removed, because it doesn't seem reliable and it will improve dataset manipulation.
+
+The difference between *ended_at* and *started_at* has been calculated and stored as *ride_length* .This indicates the duration of the trips. The day of the week and the month have also been calculated for future analysis. After that, *ended_at* and *started_at* have been removed.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+#data cleaning: step 1
+tripdata_2022_cleaned <- tripdata_2022 %>%
+  mutate(month = month(started_at, label = TRUE)) %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  mutate(trip_length = ended_at - started_at) %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  select(ride_id, rideable_type, month, weekday, trip_length, member_casual)
+
+skim_without_charts(tripdata_2022_cleaned)
+```
+
+After this first cleaning step, it is observed that *trip_length* values range is strange and further analysis has been performed. It has been observed that the *rideable_type* column has 3 unique possibilities (*electric_bike*, *classic_bike*, *docked_bike*) and that the trips within the *docked_bike* rideable bike type are showing inconsistent *trip_length* values.These values and time values inferior to 0 have been removed in a second cleaning step.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+#data cleaning: step 2:
+tripdata_2022_cleaned2 <- tripdata_2022_cleaned %>%
+  filter(rideable_type != "docked_bike") %>%
+  filter(trip_length > 0)
+skim_without_charts(tripdata_2022_cleaned2)
+```
+
+## Data analysis and visualization:
+
+In order to compare the casual riders and members behavior, different aspects of the data have been observed and analyzed. I have focused the analysis in the comparison of the two types of users frequency of use of the bike-sharing service during the different months of the year and along the week. Finally, the trip length between the user types has also been studied.
+
+#### 1) Monthly behavior:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+#prepare data
+number_rides_vs_month_membership <-tripdata_2022_cleaned2 %>%
+  group_by(month,member_casual) %>%
+  summarize(number_of_rides = n())
+
+#column graph vis
+bikesharing_monthly_frequency <- ggplot(data = number_rides_vs_month_membership, 
+       mapping = aes(x = month, y = number_of_rides, 
+                     fill = member_casual)) +
+  geom_col() +
+  geom_hline(yintercept=3.8e5,linetype=2) +
+  labs(title = "Bike-sharing use frequency", subtitle = "Number of trips per month (2022)",
+       x = "Month (2022)", y = "Number of trips") +
+  theme(axis.text.x = element_text(face ="bold"), axis.text.y = element_text(face ="bold", angle = 45)) +
+  annotate("text", x = 2.5, y = 4e5, label = "Most frequent months", fontface = "bold", size = 3)
+
+bikesharing_monthly_frequency
+```
+
+In the graph, the use frequency of the bike-sharing service by month is shown. We can deduce from it that the bike-sharing service is most used from May to October, frequency drops down in November, March and April, and it's barely used from December to January. It is also observed that the frequency of use between casual users is much more variable than between members, which can lead to the conclusion that members have planned to use the service more frequently.
+
+#### 2) Daily behavior:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+#prepare data
+number_rides_vs_weekday_membership <- tripdata_2022_cleaned2 %>%
+  group_by(weekday, member_casual) %>%
+  summarize(number_of_rides = n()) 
+
+#column graph viz
+bikesharing_monthly_frequency <- ggplot(data = number_rides_vs_weekday_membership, aes(x = weekday, y = number_of_rides, fill = member_casual)) +
+  geom_col(position='dodge') +
+  labs(title = "Bike-sharing use frequency", subtitle = "Number of trips per day (2022)",
+       x = "Day (2022)", y = "Number of trips") +
+  theme(legend.title = element_blank())
+
+bikesharing_monthly_frequency
+```
+
+This graph shows the number of trips done by day for casual users and members. It is observed that members' use of the service is quite homogeneous, while casual users take a ride more often in the weekends. This trend would be more exaggerated if we show data only from May to October.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+#prepare data 
+number_rides_vs_weekday_membership_summer <- tripdata_2022_cleaned2 %>%
+  filter(month == "May" | month == "Jun" | month == "Jul" | month == "Aug" | month == "Sep" | month == "Oct" ) %>%
+  group_by(weekday, member_casual) %>%
+  summarize(number_of_rides = n()) 
+
+#column graph viz
+bikesharing_monthly_frequency_summer <- ggplot(data = number_rides_vs_weekday_membership_summer, aes(x = weekday, y = number_of_rides, fill = member_casual)) +
+  geom_col(position='dodge') +
+  labs(title = "Bike-sharing use frequency", subtitle = "Number of trips per day from May to October (2022)",
+       x = "Day (2022)", y = "Number of trips") +
+  theme(legend.title = element_blank())
+
+bikesharing_monthly_frequency_summer
+```
+
+In this case, only the months with the most frequency of bike use are shown. We can confirm that almost all trips are made during this period of the year for both types of customers (70% of member trips and 83% casual user trips), and that the more frequent days of use are Saturday and Sunday for casual users. Members frequency is more homogeneous, but slightly higher from Monday to Saturday, showing that Sunday is the day with lowest use of the service for them (probably because members use the service more often to go to work and there are less people working on Sunday).
+
+#### 3) Trip duration:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+#prepare data
+trip_duration_membership <- tripdata_2022_cleaned2 %>%
+  select(member_casual, trip_length) %>%
+  mutate(trip_length_num = as.numeric(trip_length)) %>%
+  mutate(trip_10 = case_when(trip_length_num > 600 ~ "trip > 10 min", TRUE ~ "trip <= 10 min")) %>%
+  group_by(member_casual, trip_10) %>%
+  summarize(total_count = n())
+
+#pie_chart_data1 <- results1_duration_membership2b %>%
+  #group_by(member_casual, trip_10) %>%
+  #summarize(total_count = n())
+pie_chart_data_final <- trip_duration_membership %>%
+  group_by(member_casual) %>%
+  mutate(percentage = total_count/(sum(total_count))) %>%
+  mutate(labels = scales::percent(percentage))
+
+#pie chart viz
+ggplot(data = pie_chart_data_final, aes(x = "", y = percentage, fill = trip_10)) +
+  geom_col(color = "black") +
+  geom_text(aes(label = labels), position = position_stack(vjust = 0.5)) +
+  coord_polar(theta = "y") +
+  theme_void() +
+  facet_wrap(~member_casual) +
+  labs(title = "Bike-sharing trip duration", subtitle = "Casual vs member (2022)") +
+  scale_fill_manual(values = c("#8ECDDD","#FFCC70")) +
+  theme(legend.title = element_blank(), legend.position = "bottom", strip.text.x = element_text(size = 12, face = "bold", margin = margin(10,0,0,0)))
+```
+
+Time duration numbers clearly showed that casual members (avg. \~25 mins) were usually taking longer trips than members (avg. \~14 mins), but using a measurable time as a reference may help the audience get a better idea. For this reason, this figure displays the percentage of trips with a duration higher/lower than 10 mins (trip length median value) for each type of costumer. In this way, we can see that there are a lot of trips shorter than 10 mins for both types of customers, but that there are much more trips higher than 10 mins for casual customers.
+
+## Suggestions and future plans:
+
+We can summarize the results from the analysis:
+
+1.  In general, the use of the service increases a lot from May to October (hot months), specially for casual costumers.
+2.  Casual members use the bike-sharing service more often on weekends, while members use it everyday.
+3.  Casual members usually take longer trips than members.
+
+In this case study, our objective is trying to convert some casual customers into members. With this purpose, I'd suggest adding more membership plans that allow different kinds of customers to meet their needs. In order to gain some customers that occasionally use the service from November to March (cold months), I'd create a winter membership for a reasonable price. Moreover, since the casual customers use the service more often on the weekends I'd also create a new annual membership plan only for the weekends.
+
+On the other hand, I'd modify the pricing structure. First, I'd create a different pricing for single-trips and day-trips depending on the month of the year, making  the trips in "cold months" cheaper and more expensive during "hot months". I don't know if a trip limit exists at the moment, but I'd add extra charges for trips longer than 15 or 20 mins for casual customers, and a higher cap (like 40 mins) and a lower fee for members.
