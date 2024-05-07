@@ -2,9 +2,9 @@
 
 This case study has been proposed in the course *Google Data Analytics Capstone: Complete a Case Study* from Coursera.
 
-To see the procedures and results of the project you can download the html version of the report and open it in your browser. 
+To see the procedures and results of the project you can download the report in html version and open it in your browser. 
 
-If you want to follow the step by step procedure in R, you can download the rmd format of the report. Data size is too huge that can't be uploaded in the repository, but you should be able to download it from the original source:
+If you want to follow the step by step procedure in R, you can download the report in rmd format. Data size is too huge that can't be uploaded in the repository, but you should be able to download it from the original source:
 
 Data source: <https://divvy-tripdata.s3.amazonaws.com/index.html>.
 
